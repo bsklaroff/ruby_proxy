@@ -14,24 +14,20 @@ def handle_request(session)
   initial = req[0].split(' ')
   puts req[0]
   if initial[0] == 'GET'
-    get_request(session, req)
+    get_request(session, initial[1])
   else
     puts initial[0] + " request not supported"
   end
 end
 
 # Handles a GET request from the browser
-def get_request(session, request, limit = 10)
-  url = request[0].split(' ')[1]
-  headers = Hash.new
-  for i in (1..request.length-1)
-    pair = request[i].split(": ", 2)
-    headers[pair[0]] = pair[1][0..-3]
-  end
-  # Get the cached page unless the header tells us not to
-  if not (headers.has_key?('Cache-Control') and headers['Cache-Control'] == ['no-cache'])
-    $cache_mutex.synchronize do
-      if $cache.has_key?(url)
+def get_request(session, url, limit = 10)
+  # Get the cached page
+  $cache_mutex.synchronize do
+    if $cache.has_key?(url)
+      # Check if cache has expired
+      puts "crap"
+      if Time.now.to_i - $cache_data[url]['time'] < $default_cache_age
         $cache_heap[url] = cache_score($cache_data[url])
         $cache[url].rewind
         session.puts $cache[url].read
@@ -57,10 +53,9 @@ def get_request(session, request, limit = 10)
   when Net::HTTPSuccess then
     # On a successful GET, cache the page if it is small enough
     if res.body and res.body.bytesize <= $max_page_size
-      if not (res.has_key?('cache-control') and res['cache-control'] == ['no-cache'])
-        $cache_mutex.synchronize do
-          # Reduce size of cache if necessary
-          while $max_cache_size - $cache_size < res.body.bytesize
+      $cache_mutex.synchronize do
+        # Reduce size of cache if necessary
+        while $max_cache_size - $cache_size < res.body.bytesize
             deleted = $cache_heap.delete_min
             url = deleted[0]
             $cache[url].close
@@ -68,15 +63,14 @@ def get_request(session, request, limit = 10)
             $cache_size -= $cache_data[url]['byte_size']
             $cache_data.delete(url)
           end
-          # Add new value to cache
-          cache_file = Tempfile.new('rbcache')
-          $cache[url] = cache_file
-          $cache_data[url] = {'freq' => 0, 'byte_size' => res.body.bytesize}
-          $cache_heap[url] = cache_score($cache_data[url])
-          $cache_size += res.body.bytesize
-          cache_file.puts(res.body)
-          cache_file.flush
-        end
+        # Add new value to cache unless the response tells us not to
+        cache_file = Tempfile.new('rbcache')
+        $cache[url] = cache_file
+        $cache_data[url] = {'time' => Time.now.to_i, 'freq' => 0, 'byte_size' => res.body.bytesize}
+        $cache_heap[url] = cache_score($cache_data[url])
+        $cache_size += res.body.bytesize
+        cache_file.puts(res.body)
+        cache_file.flush
       end
     end
     send_browser_response(session, res)
@@ -100,12 +94,11 @@ def cache_score(data)
   freq = data['freq']
   byte_size = data['byte_size']
   byte_size /= Float($max_page_size)
-  time = Time.now.to_i
+  time = data['time']
   time_diff = Float(time - $start_time) / $start_time
   freq /= 10.0
   return freq * time_diff / byte_size
 end
-
 
 $max_page_size = 1048576
 cache_mult = ARGV[1] ? Integer(ARGV[1]) : 10
