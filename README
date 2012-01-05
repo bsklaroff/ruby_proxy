@@ -1,7 +1,6 @@
-Simple web proxy written in ruby. It's a work in progress, currently only handles GET requests, and does not send header information (also no https support). 
+Simple web proxy written in ruby. It's a work in progress, currently only handles GET requests, and does not send header information (also no https support). However, it caches all GET requests under 1 MB to temporary files on your machine. Note that the cache is cleared (and files removed) as soon as the program is terminated.
 
-To run it, you will first need to download the PriorityQueue gem (sudo gem install PriorityQueue), since I used someone's prewritten priorityqueue to
-help decide what to boot out of my cache.
+To run the proxy, you will first need to download the PriorityQueue gem (sudo gem install PriorityQueue), since I used someone's prewritten priorityqueue to help decide what to boot out of my cache.
 
 Then, in Firefox, simply go to Edit->Preferences->Advanced->Network->Settings, and select Manual Proxy Configuration with HTTP Proxy: 127.0.0.1, Port: 2347. You can then start my server by running ruby1.9.1 proxy.rb from the command line.
 
