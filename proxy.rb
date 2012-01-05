@@ -26,7 +26,6 @@ def get_request(session, url, limit = 10)
   $cache_mutex.synchronize do
     if $cache.has_key?(url)
       # Check if cache has expired
-      puts "crap"
       if Time.now.to_i - $cache_data[url]['time'] < $default_cache_age
         $cache_heap[url] = cache_score($cache_data[url])
         $cache[url].rewind
